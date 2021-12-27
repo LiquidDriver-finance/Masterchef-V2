@@ -9,7 +9,7 @@ import "@boringcrypto/boring-solidity/contracts/BoringOwnable.sol";
 import "../MasterChefV2.sol";
 
 /// @author @0xKeno
-contract ComplexRewarder is IRewarder,  BoringOwnable{
+contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
     using BoringMath for uint256;
     using BoringMath128 for uint128;
     using BoringERC20 for IERC20;
@@ -133,7 +133,8 @@ contract ComplexRewarder is IRewarder,  BoringOwnable{
         PoolInfo memory pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accSushiPerShare = pool.accSushiPerShare;
-        uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(_pid).balanceOf(MASTERCHEF_V2);
+        IStrategy strategy = MasterChefV2(MASTERCHEF_V2).strategies(_pid);
+        uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(_pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 blocks = block.number.sub(pool.lastRewardBlock);
             uint256 sushiReward = blocks.mul(tokenPerBlock).mul(pool.allocPoint) / totalAllocPoint;
@@ -158,7 +159,8 @@ contract ComplexRewarder is IRewarder,  BoringOwnable{
         pool = poolInfo[pid];
         require(pool.lastRewardBlock != 0, "Pool does not exist");
         if (block.number > pool.lastRewardBlock) {
-            uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(pid).balanceOf(MASTERCHEF_V2);
+            IStrategy strategy = MasterChefV2(MASTERCHEF_V2).strategies(pid);
+            uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
 
             if (lpSupply > 0) {
                 uint256 blocks = block.number.sub(pool.lastRewardBlock);

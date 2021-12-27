@@ -14,7 +14,7 @@ contract ComplexRewarderTime is IRewarder,  BoringOwnable{
     using BoringMath128 for uint128;
     using BoringERC20 for IERC20;
 
-    IERC20 private immutable rewardToken;
+    IERC20 public immutable rewardToken;
 
     /// @notice Info of each MCV2 user.
     /// `amount` LP token amount the user has provided.
@@ -46,7 +46,7 @@ contract ComplexRewarderTime is IRewarder,  BoringOwnable{
     uint256 public rewardPerSecond;
     uint256 private constant ACC_TOKEN_PRECISION = 1e12;
 
-    address private immutable MASTERCHEF_V2;
+    address public immutable MASTERCHEF_V2;
 
     event LogOnReward(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event LogPoolAddition(uint256 indexed pid, uint256 allocPoint);
@@ -62,7 +62,7 @@ contract ComplexRewarderTime is IRewarder,  BoringOwnable{
     }
 
 
-    function onSushiReward (uint256 pid, address _user, address to, uint256, uint256 lpToken) onlyMCV2 override external {
+    function onLqdrReward (uint256 pid, address _user, address to, uint256, uint256 lpToken) onlyMCV2 override external {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][_user];
         uint256 pending;

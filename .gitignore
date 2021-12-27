@@ -9,3 +9,6 @@ package-lock.json
 coverage.json
 .env
 .DS_Store
+flatten/
+deploy/
+test/

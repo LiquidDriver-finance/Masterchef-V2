@@ -9,7 +9,7 @@ interface IMiniChefV2 {
     }
 
     struct PoolInfo {
-        uint128 accSushiPerShare;
+        uint128 accLqdrPerShare;
         uint64 lastRewardTime;
         uint64 allocPoint;
     }
@@ -22,4 +22,8 @@ interface IMiniChefV2 {
     function harvest(uint256 pid, address to) external;
     function withdrawAndHarvest(uint256 pid, uint256 amount, address to) external;
     function emergencyWithdraw(uint256 pid, address to) external;
+    function pendingReward(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256);
 }
