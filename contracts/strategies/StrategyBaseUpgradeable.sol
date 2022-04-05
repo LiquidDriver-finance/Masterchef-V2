@@ -5,10 +5,11 @@ pragma solidity ^0.6.7;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 // Strategy Contract Basics
 
-abstract contract StrategyBase {
+abstract contract StrategyBaseUpgradeable is OwnableUpgradeable {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -22,10 +23,10 @@ abstract contract StrategyBase {
 
     mapping(address => bool) public harvesters;
 
-    constructor(
-        address _want,
-        address _depositor
-    ) public {
+    constructor() public {}
+
+    function initializeStrategyBase(address _want, address _depositor) public initializer {
+        __Ownable_init();
         require(_want != address(0));
         require(_depositor != address(0));
 

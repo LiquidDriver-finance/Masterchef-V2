@@ -12,3 +12,6 @@ coverage.json
 flatten/
 deploy/
 test/
+*.temp
+tasks/
+*.config.ts

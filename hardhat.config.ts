@@ -59,8 +59,8 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: `https://rpc.ftm.tools/`,
-        // blockNumber: 20370477,
+        url: "https://rpc.ftm.tools/",
+        blockNumber: 33582770,
       },
     },
     mainnet: {
@@ -80,7 +80,7 @@ const config: HardhatUserConfig = {
       chainId: 250,
       live: true,
       saveDeployments: true,
-      gasPrice: 400 * 1000000000,
+      gasPrice: 300 * 1000000000,
     },
     "fantom-testnet": {
       url: "https://rpc.testnet.fantom.network",

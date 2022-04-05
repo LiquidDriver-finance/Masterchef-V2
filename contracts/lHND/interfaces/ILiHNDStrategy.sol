@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.12;
 
-interface ILinSpiritStrategy {
-    function balanceOfInSpirit() external view returns (uint256);
+interface ILiHNDStrategy {
+    function balanceOfVeHND() external view returns (uint256);
 
     function deposit(address, address) external;
 
@@ -24,7 +24,7 @@ interface ILinSpiritStrategy {
 
     function release() external;
 
-    function claimGaugeReward(address _gauge) external;
+    function claimGaugeReward(address _gauge, address _depositor) external;
 
     function claimSpirit(address) external returns (uint256);
 
@@ -35,8 +35,9 @@ interface ILinSpiritStrategy {
     function setStashAccess(address, bool) external;
 
     function vote(
-        address[] calldata _tokenVote,
-        uint256[] calldata _weights
+        uint256,
+        address,
+        bool
     ) external;
 
     function voteGaugeWeight(address, uint256) external;

@@ -19,7 +19,6 @@ import "hardhat/console.sol";
 /// It is the only address with minting rights for LQDR.
 /// The idea for this MasterChef V2 (MCV2) contract is therefore to be the owner of a dummy token
 /// that is deposited into the MasterChef V1 (MCV1) contract.
-/// The allocation point for this pool on MCV1 is the total allocation point for all pools that receive double incentives.
 contract MasterChefV2 is OwnableUpgradeable {
     using SafeMath for uint256;
     using BoringMath128 for uint128;
@@ -100,7 +99,11 @@ contract MasterChefV2 is OwnableUpgradeable {
         ACC_LQDR_PRECISION = 1e18;
     }
 
-    function setMasterChef(IMasterChef masterChef, uint256 masterPid, uint256 masterChefLqdrPerBlock) external onlyOwner {
+    function setMasterChef(
+        IMasterChef masterChef, 
+        uint256 masterPid, 
+        uint256 masterChefLqdrPerBlock
+    ) external onlyOwner {
         MASTER_CHEF = masterChef;
         MASTER_PID = masterPid;
         MASTERCHEF_LQDR_PER_BLOCK = masterChefLqdrPerBlock;
@@ -121,9 +124,8 @@ contract MasterChefV2 is OwnableUpgradeable {
         treasury = _treasuryAddress;
     }
 
-    /// @notice Deposits a dummy token to `MASTER_CHEF` MCV1. This is required because MCV1 holds the minting rights for LQDR.
+    /// @notice Deposits a dummy token to `MASTER_CHEF` MCV1.
     /// Any balance of transaction sender in `dummyToken` is transferred.
-    /// The allocation point for the pool on MCV1 is the total allocation point for all pools that receive double incentives.
     /// @param dummyToken The address of the ERC-20 token to deposit into MCV1.
     function init(IERC20 dummyToken) external {
         uint256 balance = dummyToken.balanceOf(msg.sender);
@@ -144,7 +146,13 @@ contract MasterChefV2 is OwnableUpgradeable {
     /// @param allocPoint AP of the new pool.
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
-    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder, IStrategy _strategy, uint256 _depositFee) public onlyOwner {
+    function add(
+        uint256 allocPoint, 
+        IERC20 _lpToken, 
+        IRewarder _rewarder, 
+        IStrategy _strategy, 
+        uint256 _depositFee
+    ) public onlyOwner {
         uint256 lastRewardBlock = block.number;
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
@@ -165,16 +173,68 @@ contract MasterChefV2 is OwnableUpgradeable {
     /// @param _allocPoint New AP of the pool.
     /// @param _rewarder Address of the rewarder delegate.
     /// @param overwrite True if _rewarder should be `set`. Otherwise `_rewarder` is ignored.
-    function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, IStrategy _strategy, uint256 _depositFee, bool overwrite) public onlyOwner {
+    function set(
+        uint256 _pid, 
+        uint256 _allocPoint, 
+        IRewarder _rewarder, 
+        IStrategy _strategy, 
+        uint256 _depositFee, 
+        bool overwrite
+    ) public onlyOwner {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
         poolInfo[_pid].depositFee = _depositFee;
         if (overwrite) { 
             rewarder[_pid] = _rewarder; 
-            strategies[_pid] = _strategy; 
+
+            if (address(strategies[_pid]) != address(_strategy)) {
+                if (address(strategies[_pid]) != address(0)) {
+                    _withdrawAllFromStrategy(_pid, strategies[_pid]);
+                }
+                if (address(_strategy) != address(0)) {
+                    _depositAllToStrategy(_pid, _strategy);
+                }
+                strategies[_pid] = _strategy; 
+            }
         }
 
         emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
+    }
+
+    function _withdrawAllFromStrategy(uint256 _pid, IStrategy _strategy) internal {
+        IERC20 _lpToken = lpToken[_pid];
+        uint256 _strategyBalance = _strategy.balanceOf();
+        require(address(_lpToken) == _strategy.want(), '!lpToken');
+
+        if (_strategyBalance > 0) {
+            _strategy.withdraw(_strategyBalance);
+            uint256 _currentBalance = _lpToken.balanceOf(address(this));
+
+            require(_currentBalance >= _strategyBalance, '!balance1');
+
+            _strategyBalance = _strategy.balanceOf();
+            require(_strategyBalance == 0, '!balance2');
+        }
+    }
+
+    function _depositAllToStrategy(uint256 _pid, IStrategy _strategy) internal {
+        IERC20 _lpToken = lpToken[_pid];
+        uint256 _strategyBalanceBefore = _strategy.balanceOf();
+        uint256 _balanceBefore = _lpToken.balanceOf(address(this));
+        require(address(_lpToken) == _strategy.want(), '!lpToken');
+
+        if (_balanceBefore > 0) {
+            _lpToken.safeTransfer(address(_strategy), _balanceBefore);
+            _strategy.deposit();
+
+            uint256 _strategyBalanceAfter = _strategy.balanceOf();
+            uint256 _strategyBalanceDiff = _strategyBalanceAfter.sub(_strategyBalanceBefore);
+
+            require(_strategyBalanceDiff == _balanceBefore, '!balance1');
+
+            uint256 _balanceAfter = _lpToken.balanceOf(address(this));
+            require(_balanceAfter == 0, '!balance2');
+        }
     }
 
     /// @notice View function to see pending LQDR on frontend.

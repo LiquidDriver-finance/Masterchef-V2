@@ -5,16 +5,16 @@ pragma experimental ABIEncoderV2;
 import "../interfaces/IRewarder.sol";
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringERC20.sol";
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
-import "@boringcrypto/boring-solidity/contracts/BoringOwnable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../MasterChefV2.sol";
 
 /// @author @0xKeno
-contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
+contract StrategyRewarder is IRewarder,  OwnableUpgradeable{
     using BoringMath for uint256;
     using BoringMath128 for uint128;
     using BoringERC20 for IERC20;
 
-    IERC20 private immutable rewardToken;
+    IERC20 public rewardToken;
 
     /// @notice Info of each MCV2 user.
     /// `amount` LP token amount the user has provided.
@@ -44,9 +44,9 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
     uint256 totalAllocPoint;
 
     uint256 public tokenPerBlock;
-    uint256 private constant ACC_TOKEN_PRECISION = 1e18;
+    uint256 private ACC_TOKEN_PRECISION;
 
-    address private immutable MASTERCHEF_V2;
+    address public MASTERCHEF_V2;
 
     event LogOnReward(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event LogPoolAddition(uint256 indexed pid, uint256 allocPoint);
@@ -54,14 +54,25 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
     event LogUpdatePool(uint256 indexed pid, uint64 lastRewardBlock, uint256 lpSupply, uint256 accSushiPerShare);
     event LogInit();
 
-    constructor (IERC20 _rewardToken, uint256 _tokenPerBlock, address _MASTERCHEF_V2) public {
+    constructor () public {
+    }
+
+    function initialize(IERC20 _rewardToken, uint256 _tokenPerBlock, address _MASTERCHEF_V2) public initializer {
+        __Ownable_init();
         rewardToken = _rewardToken;
         tokenPerBlock = _tokenPerBlock;
         MASTERCHEF_V2 = _MASTERCHEF_V2;
+        ACC_TOKEN_PRECISION = 1e18;
     }
 
 
-    function onLqdrReward (uint256 pid, address _user, address to, uint256, uint256 lpToken) onlyMCV2 override external {
+    function onLqdrReward (
+        uint256 pid, 
+        address _user, 
+        address to, 
+        uint256, 
+        uint256 lpToken
+    ) onlyMCV2 override external {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][_user];
         uint256 pending;
@@ -77,7 +88,11 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
         emit LogOnReward(_user, pid, pending, to);
     }
     
-    function pendingTokens(uint256 pid, address user, uint256) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
+    function pendingTokens(
+        uint256 pid, 
+        address user, 
+        uint256
+    ) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
         IERC20[] memory _rewardTokens = new IERC20[](1);
         _rewardTokens[0] = (rewardToken);
         uint256[] memory _rewardAmounts = new uint256[](1);
@@ -116,7 +131,7 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
         emit LogPoolAddition(_pid, allocPoint);
     }
 
-    /// @notice Update the given pool's SUSHI allocation point and `IRewarder` contract. Can only be called by the owner.
+    /// @notice Update the given pool's SUSHI allocation point and `IRewarder` contract.
     /// @param _pid The index of the pool. See `poolInfo`.
     /// @param _allocPoint New AP of the pool.
     function set(uint256 _pid, uint256 _allocPoint) public onlyOwner {
@@ -133,8 +148,16 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
         PoolInfo memory pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accSushiPerShare = pool.accSushiPerShare;
+        
         IStrategy strategy = MasterChefV2(MASTERCHEF_V2).strategies(_pid);
-        uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(_pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
+        uint256 lpSupply;
+
+        if (address(strategy) != address(0)) {
+          lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(_pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
+        } else {
+          lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(_pid).balanceOf(MASTERCHEF_V2);
+        }
+
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 blocks = block.number.sub(pool.lastRewardBlock);
             uint256 sushiReward = blocks.mul(tokenPerBlock).mul(pool.allocPoint) / totalAllocPoint;
@@ -152,6 +175,10 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
         }
     }
 
+    function setTokenPerBlock(uint256 _tokenPerBlock) external onlyOwner {
+      tokenPerBlock = _tokenPerBlock;
+    }
+
     /// @notice Update reward variables of the given pool.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @return pool Returns the pool that was updated.
@@ -160,17 +187,34 @@ contract ComplexRewarderStrategy is IRewarder,  BoringOwnable{
         require(pool.lastRewardBlock != 0, "Pool does not exist");
         if (block.number > pool.lastRewardBlock) {
             IStrategy strategy = MasterChefV2(MASTERCHEF_V2).strategies(pid);
-            uint256 lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
+            
+            uint256 lpSupply;
+
+            if (address(strategy) != address(0)) {
+              lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(pid).balanceOf(MASTERCHEF_V2).add(strategy.balanceOf());
+            } else {
+              lpSupply = MasterChefV2(MASTERCHEF_V2).lpToken(pid).balanceOf(MASTERCHEF_V2);
+            }
 
             if (lpSupply > 0) {
                 uint256 blocks = block.number.sub(pool.lastRewardBlock);
                 uint256 sushiReward = blocks.mul(tokenPerBlock).mul(pool.allocPoint) / totalAllocPoint;
-                pool.accSushiPerShare = pool.accSushiPerShare.add((sushiReward.mul(ACC_TOKEN_PRECISION) / lpSupply).to128());
+                pool.accSushiPerShare = pool.accSushiPerShare.add(
+                    (sushiReward.mul(ACC_TOKEN_PRECISION) / lpSupply).to128()
+                );
             }
             pool.lastRewardBlock = block.number.to64();
             poolInfo[pid] = pool;
             emit LogUpdatePool(pid, pool.lastRewardBlock, lpSupply, pool.accSushiPerShare);
         }
+    }
+
+    function salvage(
+        address recipient,
+        address token,
+        uint256 amount
+    ) external onlyOwner {
+        IERC20(token).safeTransfer(recipient, amount);
     }
 
 }
